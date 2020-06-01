@@ -11,4 +11,5 @@ public class GameSetup : MonoBehaviour
     public GameObject BorderPrefab;
     public GameObject FillerPrefab;
     public GameObject CoverPrefab;
+    public GameObject LinePrefab;
 }

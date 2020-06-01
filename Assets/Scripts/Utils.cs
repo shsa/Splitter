@@ -67,9 +67,14 @@ public static class Utils
     //    return border;
     //}
 
-    public static Vector2 ToFloat(this Vector2Int a)
+    public static Vector2 ToVector2(this Vector2Int v)
     {
-        return new Vector2(a.x, a.y);
+        return new Vector2(v.x, v.y);
+    }
+
+    public static Vector3 ToVector3(this Vector2 v)
+    {
+        return new Vector3(v.x, v.y, 0);
     }
 
     public static Vector2Int Rotate90(this Vector2Int a)
@@ -87,4 +92,10 @@ public static class Utils
     {
         return Vector2Int.FloorToInt(v + vHalf);
     }
+
+    public static Vector2Int ToInt(this Vector3 v)
+    {
+        return Vector2Int.FloorToInt((Vector2)v + vHalf);
+    }
+
 }

@@ -4,8 +4,17 @@ using UnityEngine;
 public class GameMap
 {
     Dictionary<Vector2Int, GameObject> map = new Dictionary<Vector2Int, GameObject>();
-
-    public GameSetup Setup;
+    RectInt rect;
+    GameSetup setup;
+    public GameSetup Setup {
+        get {
+            return setup;
+        }
+        set {
+            setup = value;
+            rect = new RectInt(0, 0, setup.Width, setup.Height);
+        }
+    }
     public Transform Parent;
 
     public void Clear()
@@ -17,11 +26,12 @@ public class GameMap
         map.Clear();
     }
 
-    public void Set(GameObject obj, Vector2Int pos)
+    public void Set(GameObject obj, Vector2Int pos, ItemType type)
     {
-        var mapPosition = obj.AddComponent<GameMapComponent>();
-        mapPosition.position = pos;
-        mapPosition.map = this;
+        var mapInfo = obj.AddComponent<ItemMapInfo>();
+        mapInfo.position = pos;
+        mapInfo.map = this;
+        mapInfo.type = type;
         if (map.TryGetValue(pos, out var oldObj))
         {
             Object.Destroy(oldObj);
@@ -29,20 +39,36 @@ public class GameMap
         map[pos] = obj;
     }
 
-    public GameObject Get(Vector2Int pos)
+    public ItemMapInfo Get(Vector2Int pos)
     {
         if (map.TryGetValue(pos, out var obj))
         {
-            return obj;
+            return obj.GetComponent<ItemMapInfo>();
         }
         return null;
     }
 
-    public IEnumerable<GameMapComponent> GetObjects()
+    public ItemType GetItemType(Vector2Int pos)
+    {
+        if (map.TryGetValue(pos, out var obj))
+        {
+            return obj.GetComponent<ItemMapInfo>().type;
+        }
+        if (rect.Contains(pos))
+        {
+            return ItemType.Empty;
+        }
+        else
+        {
+            return ItemType.Outside;
+        }
+    }
+
+    public IEnumerable<ItemMapInfo> GetObjects()
     {
         foreach (var obj in map.Values)
         {
-            yield return obj.GetComponent<GameMapComponent>();
+            yield return obj.GetComponent<ItemMapInfo>();
         }
     }
 
@@ -50,9 +76,9 @@ public class GameMap
     {
         if (map.TryGetValue(pos, out var obj))
         {
-            return obj.GetComponent<CoverComponent>() != null;
+            return obj.GetComponent<ItemMapInfo>().type != ItemType.Cover;
         }
-        return true;
+        return rect.Contains(pos);
     }
 
     public bool Contains(Vector2Int pos)
@@ -64,12 +90,12 @@ public class GameMap
     {
         if (map.TryGetValue(pos, out var obj))
         {
-            return obj.GetComponent<BorderComponent>() != null;
+            return obj.GetComponent<ItemMapInfo>().type == ItemType.Border;
         }
         return false;
     }
 
-    public IEnumerable<Vector2Int> GetInternal(Vector2Int pos)
+    public IEnumerable<Vector2Int> GetFillArea(Vector2Int pos)
     {
         if (Contains(pos))
         {

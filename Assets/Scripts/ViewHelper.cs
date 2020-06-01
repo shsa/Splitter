@@ -12,7 +12,7 @@ public static class ViewHelper
         obj.transform.localPosition = new Vector3(pos.x, pos.y, 0);
         obj.transform.localScale = Vector3.one;
         obj.name = "b " + pos.ToString();
-        map.Set(obj, pos);
+        map.Set(obj, pos, ItemType.Border);
         return obj;
     }
 
@@ -24,7 +24,7 @@ public static class ViewHelper
         obj.transform.localPosition = new Vector3(pos.x, pos.y, 0);
         obj.transform.localScale = Vector3.one;
         obj.name = "f " + pos.ToString();
-        map.Set(obj, pos);
+        map.Set(obj, pos, ItemType.Filler);
         return obj;
     }
 
@@ -35,7 +35,18 @@ public static class ViewHelper
         obj.transform.localPosition = new Vector3(pos.x, pos.y, 0);
         obj.transform.localScale = Vector3.one;
         obj.name = "c " + pos.ToString();
-        map.Set(obj, pos);
+        map.Set(obj, pos, ItemType.Cover);
+        return obj;
+    }
+
+    public static GameObject SetLine(this GameMap map, Vector2Int pos)
+    {
+        var prefab = map.Setup.LinePrefab;
+        var obj = Object.Instantiate(prefab, map.Parent);
+        obj.transform.localPosition = new Vector3(pos.x, pos.y, 0);
+        obj.transform.localScale = Vector3.one;
+        obj.name = "l " + pos.ToString();
+        map.Set(obj, pos, ItemType.Line);
         return obj;
     }
 }

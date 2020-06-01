@@ -19,22 +19,28 @@ public class GameScript : MonoBehaviour
         }
     }
 
+    static readonly Vector2Int imposiblePosition = new Vector2Int(int.MaxValue, int.MaxValue);
     RectInt gameSize;
-    RectInt gameInside;
     GameMap map = new GameMap();
     List<WayPoint> way = new List<WayPoint>();
     RectTransform gameUI;
     Transform game;
+    GameInput input;
     Transform start;
     Transform finish;
     Transform enemy;
     GameObject image;
+    Vector2 speed = Vector2.one;
+    ItemType wayType;
 
     // Start is called before the first frame update
     void Start()
     {
         gameUI = GameObject.Find("GameUI").GetComponent<RectTransform>();
         game = GameObject.Find("Game").transform;
+        input = game.gameObject.AddComponent<GameInput>();
+        input.Setup = Setup;
+
         start = GameObject.Find("Start").transform;
         finish = GameObject.Find("Finish").transform;
         enemy = GameObject.Find("Enemy").transform;
@@ -46,12 +52,10 @@ public class GameScript : MonoBehaviour
         GameInit();
     }
 
-    // Update is called once per frame
     void Update()
     {
         ViewSetup();
-        UpdateInput();
-        UpdatePlayer();
+        UpdateInput2();
 
         if (isStarted)
         {
@@ -105,6 +109,99 @@ public class GameScript : MonoBehaviour
                 }
             }
         }
+
+        if (dir != Vector2Int.zero)
+        {
+            var curPos = (Vector2)start.localPosition;
+            var delta = Vector2.Lerp(Vector2.zero, dir * speed, Time.deltaTime);
+            var curNext = curPos + delta;
+
+            if (Vector2.Dot(finishPos - curNext, dir) < 0)
+            {
+                curNext = finishPos;
+            }
+
+            var mapPos = start.localPosition.ToInt();
+            var mapDelta = curNext - mapPos;
+            var p1 = mapPos;
+            while (Vector2.Dot(curNext - p1, dir) > 0)
+            {
+                // place way item
+                if (map.GetItemType(p1) == ItemType.Cover)
+                {
+                    map.SetLine(p1);
+                }
+                p1 += dir;
+            }
+            if (Vector2.Dot(finishPos - curNext, dir) <= 0)
+            {
+                curNext = finishPos;
+                input.direction = Vector2Int.zero;
+                input.position = finishPos;
+                dir = Vector2Int.zero;
+                startPos = finishPos;
+                if (nextDir != Vector2Int.zero)
+                {
+                    ChangeDir(nextDir);
+                    nextDir = Vector2Int.zero;
+                }
+            }
+
+
+            start.localPosition = curNext;
+        }
+    }
+
+    void ChangeDir(Vector2Int newDir)
+    {
+        dir = newDir;
+        finishPos = startPos;
+        var wayType = map.GetItemType(startPos + dir);
+        if (wayType != ItemType.Outside)
+        {
+            finishPos = startPos;
+            while (map.GetItemType(finishPos + dir) == wayType)
+            {
+                finishPos += dir;
+            }
+            start.localPosition = (Vector2)startPos;
+            input.position = startPos;
+        }
+        else
+        {
+            dir = Vector2Int.zero;
+        }
+    }
+
+    void UpdateInput2()
+    {
+        if (input.direction != Vector2Int.zero)
+        {
+            if (dir == Vector2Int.zero)
+            {
+                if (input.position == Vector2Int.zero)
+                {
+                    // start from current position
+                    startPos = start.localPosition.ToInt();
+                }
+                else
+                {
+                    // find from touch
+                    startPos = GetStartPos(input.position, input.direction);
+                }
+                ChangeDir(input.direction);
+            }
+            else
+            if (dir != input.direction)
+            {
+                finishPos = start.localPosition.ToInt();
+                if (Vector2.Dot(finishPos - (Vector2)start.localPosition, dir) < 0)
+                {
+                    finishPos += dir;
+                }
+                nextDir = input.direction;
+            }
+        }
     }
 
     float gameWidth = 0;
@@ -156,6 +253,7 @@ public class GameScript : MonoBehaviour
 
         var sc = enemy.GetComponent<EnemyScript>();
         sc.velocity = sc.velocity.normalized * Setup.Speed * cellSize;
+        speed = Vector2.one * Setup.Speed * cellSize;
     }
 
     Vector2Int posBegin;
@@ -176,7 +274,7 @@ public class GameScript : MonoBehaviour
             var pos0 = Camera.main.ScreenToWorldPoint(touch.position);
             pos0 = game.InverseTransformPoint(pos0);
             var pos = Vector2Int.FloorToInt(new Vector2(pos0.x, pos0.y));
-            if (!gameInside.Contains(pos))
+            if (!gameSize.Contains(pos))
             {
                 return;
             }
@@ -259,32 +357,55 @@ public class GameScript : MonoBehaviour
         }
     }
 
-    void ChangeDir(Vector2Int dir)
-    {
-
-    }
-
     Vector2Int GetStartPos(Vector2Int start, Vector2Int dir)
     {
+        // find nearest start point to direction
         var pos = start;
-        // поиск свободного места, в случае, если движение было по бордюру
-        while (!map.IsEmpty(pos))
+        if (dir == Vector2Int.up)
         {
-            pos -= dir;
+            pos = new Vector2Int(start.x, 0);
+        }
+        else
+        if (dir == Vector2Int.down)
+        {
+            pos = new Vector2Int(start.x, gameSize.yMax - 1);
+        }
+        else
+        if (dir == Vector2Int.left)
+        {
+            pos = new Vector2Int(gameSize.xMax - 1, start.y);
+        }
+        else
+        if (dir == Vector2Int.right)
+        {
+            pos = new Vector2Int(0, start.y);
         }
 
-        while (gameInside.Contains(pos) && map.IsEmpty(pos))
+        var result = imposiblePosition;
+        while (gameSize.Contains(pos))
         {
-            pos -= dir;
+            if (map.IsBorder(pos) && map.IsEmpty(pos + dir))
+            {
+                if ((start - result).sqrMagnitude > (start - pos).sqrMagnitude)
+                {
+                    result = pos;
+                }
+            }
+
+            pos += dir;
         }
 
-        return pos;
+        if (result == imposiblePosition)
+        {
+            return start;
+        }
+        return result;
     }
 
     Vector2Int GetFinishPos(Vector2Int start, Vector2Int dir)
     {
         var pos = start + dir;
-        while (gameInside.Contains(pos) && map.IsEmpty(pos))
+        while (gameSize.Contains(pos) && map.IsEmpty(pos))
         {
             pos += dir;
         }
@@ -292,14 +413,9 @@ public class GameScript : MonoBehaviour
         return pos - dir;
     }
 
-    void UpdatePlayer()
-    {
-    }
-
     void GameInit()
     {
         gameSize = new RectInt(0, 0, Setup.Width, Setup.Height);
-        gameInside = new RectInt(1, 1, Setup.Width - 2, Setup.Height - 2);
 
         map.Clear();
         var maxX = Setup.Width - 1;
@@ -329,7 +445,7 @@ public class GameScript : MonoBehaviour
     int Count(Vector2Int pos)
     {
         var sum = 0;
-        foreach (var p in map.GetInternal(pos))
+        foreach (var p in map.GetFillArea(pos))
         {
             sum++;
         }
@@ -339,7 +455,7 @@ public class GameScript : MonoBehaviour
     IEnumerator Fill(Vector2Int pos, Vector2Int dir)
     {
         var list = new List<Vector2Int>();
-        foreach (var p in map.GetInternal(pos))
+        foreach (var p in map.GetFillArea(pos))
         {
             map.SetFiller(p);
             list.Add(p);
@@ -348,7 +464,7 @@ public class GameScript : MonoBehaviour
         var borders = GameObject.FindObjectsOfType<BorderComponent>();
         foreach (var border in borders)
         {
-            var positionComponent = border.GetComponent<GameMapComponent>();
+            var positionComponent = border.GetComponent<ItemMapInfo>();
             var p = positionComponent.position;
             var borderIn = map.Contains(p + Vector2Int.up)
                 && map.Contains(p + Vector2Int.up + Vector2Int.right)
@@ -423,7 +539,7 @@ public class GameScript : MonoBehaviour
                 //iTween.ScaleFrom(obj, Vector3.zero, time);
                 var obj = map.Get(p);
                 //iTween.ColorFrom(obj, iTween.Hash("color", Color.clear, "time", time, "delay", pause));
-                iTween.ColorTo(obj, iTween.Hash("color", Color.clear, "time", time, "delay", pause));
+                iTween.ColorTo(obj.gameObject, iTween.Hash("color", Color.clear, "time", time, "delay", pause));
             }
             //yield return pause;
             pause += pauseTime;
