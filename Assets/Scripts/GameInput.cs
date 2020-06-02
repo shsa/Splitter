@@ -27,12 +27,8 @@ public class GameInput : MonoBehaviour
 
     void ChangeDirection(Vector2Int dir)
     {
-        // Only if the direction changes at right angles
-        if (Vector2.Dot(direction, dir) == 0)
-        {
-            position = Vector2Int.zero;
-            direction = dir;
-        }
+        position = Vector2Int.zero;
+        direction = dir;
     }
 
     void Update()

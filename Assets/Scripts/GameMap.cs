@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class GameMap
@@ -66,9 +67,21 @@ public class GameMap
 
     public IEnumerable<ItemMapInfo> GetObjects()
     {
-        foreach (var obj in map.Values)
+        foreach (var obj in map.Values.ToArray())
         {
             yield return obj.GetComponent<ItemMapInfo>();
+        }
+    }
+
+    public IEnumerable<ItemMapInfo> GetObjects(ItemType type)
+    {
+        foreach (var obj in map.Values.ToArray())
+        {
+            var info = obj.GetComponent<ItemMapInfo>();
+            if (info.type == type)
+            {
+                yield return info;
+            }
         }
     }
 
@@ -76,9 +89,9 @@ public class GameMap
     {
         if (map.TryGetValue(pos, out var obj))
         {
-            return obj.GetComponent<ItemMapInfo>().type != ItemType.Cover;
+            return obj.GetComponent<ItemMapInfo>().type == ItemType.Cover;
         }
-        return rect.Contains(pos);
+        return true;
     }
 
     public bool Contains(Vector2Int pos)
