@@ -49,4 +49,12 @@ public static class ViewHelper
         map.Set(obj, pos, ItemType.Line);
         return obj;
     }
+
+    public static Transform CreatePlayer(this GameScript game)
+    {
+        var obj = Object.Instantiate(game.Setup.PlayerPrefab, game.transform);
+        obj.transform.localScale = Vector3.one;
+        obj.name = "Player";
+        return obj.transform;
+    }
 }

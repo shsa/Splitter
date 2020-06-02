@@ -91,7 +91,7 @@ public class GameMap
         {
             return obj.GetComponent<ItemMapInfo>().type == ItemType.Cover;
         }
-        return true;
+        return rect.Contains(pos);
     }
 
     public bool Contains(Vector2Int pos)

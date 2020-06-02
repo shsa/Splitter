@@ -38,9 +38,9 @@ public class GameScript : MonoBehaviour
     GameInput input;
     Transform player;
     Transform finish;
-    Transform enemy;
+    Transform[] enemies;
     GameObject image;
-    Vector2 enemySpeed = Vector2.one;
+    float enemySpeed = 1;
     Vector2Int startPos;
     Vector2Int finishPos;
     Vector2Int dir;
@@ -56,14 +56,16 @@ public class GameScript : MonoBehaviour
         game = GameObject.Find("Game").transform;
         input = game.gameObject.AddComponent<GameInput>();
 
-        player = GameObject.Find("Player").transform;
         finish = GameObject.Find("Finish").transform;
-        enemy = GameObject.Find("Enemy").transform;
+        enemies = GameObject.FindGameObjectsWithTag("Enemy").Select(e => e.transform).ToArray();
         image = GameObject.Find("Image");
 
         map.Setup = Setup;
         map.Parent = GameObject.Find("Borders").transform;
-        enemy.GetComponent<EnemyScript>().map = map;
+        foreach (var enemy in enemies)
+        {
+            enemy.GetComponent<EnemyScript>().map = map;
+        }
         GameInit();
     }
 
@@ -131,7 +133,7 @@ public class GameScript : MonoBehaviour
                     }
                     else
                     {
-                        OnFinish();
+                        OnEndMove();
                     }
                 }
             }
@@ -317,15 +319,20 @@ public class GameScript : MonoBehaviour
         var scale = rect.width * 1.0f / imageWidth;
         image.transform.localScale = new Vector3(scale, scale, 1);
 
-        var sc = enemy.GetComponent<EnemyScript>();
-        enemySpeed = Vector2.one * Setup.Speed * cellSize;
-        sc.velocity = sc.velocity.normalized * enemySpeed;
-        var rb = enemy.GetComponent<Rigidbody2D>();
-        if (rb.velocity.sqrMagnitude == 0)
+
+        enemySpeed = Setup.Speed * cellSize;
+        foreach (var enemy in enemies)
         {
-            rb.velocity = Vector2.one;
+            var rb = enemy.GetComponent<Rigidbody2D>();
+            if (rb.velocity.sqrMagnitude == 0)
+            {
+                rb.RandomVelocity(enemySpeed);
+            }
+            else
+            {
+                rb.velocity = rb.velocity.normalized * enemySpeed;
+            }
         }
-        rb.velocity = rb.velocity.normalized * enemySpeed;
     }
 
     void GameInit()
@@ -352,14 +359,21 @@ public class GameScript : MonoBehaviour
             }
         }
 
+        if (player != null)
+        {
+            Object.Destroy(player.gameObject);
+        }
+        player = this.CreatePlayer();
         player.localPosition = new Vector2((Setup.Width - 1) / 2, 0);
 
-        enemy.localPosition = new Vector2(maxX * 0.5f, maxY * 0.5f);
-        var rb = enemy.GetComponent<Rigidbody2D>();
-        rb.velocity = Vector2.one * enemySpeed;
-
-        var enemyScript = enemy.GetComponent<EnemyScript>();
-        enemyScript.game = this;
+        foreach (var enemy in enemies)
+        {
+            enemy.localPosition = new Vector2(Random.Range(gameRect.xMin, gameRect.xMax), Random.Range(gameRect.yMin, gameRect.yMax));
+            var rb = enemy.GetComponent<Rigidbody2D>();
+            rb.RandomVelocity(enemySpeed);
+            var enemyScript = enemy.GetComponent<EnemyScript>();
+            enemyScript.game = this;
+        }
 
         input.Setup = Setup;
 
@@ -368,23 +382,24 @@ public class GameScript : MonoBehaviour
 
     int Count(Vector2Int pos)
     {
+        var ee = enemies.Select(e => e.localPosition.ToInt()).ToArray();
+
         var sum = 0;
         foreach (var p in map.GetFillArea(pos))
         {
+            // we cant fill area, which contains a enemy
+            foreach (var e in ee)
+            {
+                if (e == p)
+                    return 0;
+            }
             sum++;
         }
         return sum;
     }
 
-    void Fill(Vector2Int pos, Vector2Int dir)
+    void Fill(List<Vector2Int> list, Vector2Int dir)
     {
-        var list = new List<Vector2Int>();
-        foreach (var p in map.GetFillArea(pos))
-        {
-            map.SetFiller(p);
-            list.Add(p);
-        }
-
         foreach (var border in map.GetObjects(ItemType.Border))
         {
             var p = border.position;
@@ -469,18 +484,42 @@ public class GameScript : MonoBehaviour
         }
     }
 
-    void OnFinish()
+    void Fill(Vector2Int pos, Vector2Int dir)
+    {
+        var list = new List<Vector2Int>();
+        foreach (var p in map.GetFillArea(pos))
+        {
+            map.SetFiller(p);
+            list.Add(p);
+        }
+
+        Fill(list, dir);
+    }
+
+    void OnEndMove()
     {
         dir = Vector2Int.zero;
         input.direction = Vector2Int.zero;
+        player.GetComponent<BoxCollider2D>().enabled = false;
+    }
+
+    void OnFinish()
+    {
+        OnEndMove();
 
         foreach (var w in way)
         {
             map.SetBorder(w.position);
         }
 
+        var firstDir = Vector2Int.zero;
         foreach (var w in way)
         {
+            if (firstDir == Vector2Int.zero)
+            {
+                firstDir = w.dir;
+            }
+
             var d = w.dir.Rotate90();
             var p0 = w.position + d;
             var p1 = w.position - d;
@@ -491,14 +530,18 @@ public class GameScript : MonoBehaviour
                 var s1 = Count(p1);
 
                 var pos = p1;
-                if (s0 < s1)
+                if (s0 > 0)
                 {
-                    pos = p0;
+                    Fill(p0, w.dir);
                 }
-
-                Fill(pos, w.dir);
+                if (s1 > 0)
+                {
+                    Fill(p1, w.dir);
+                }
             }
         }
+
+        Fill(new List<Vector2Int>(), firstDir);
         way.Clear();
     }
 
@@ -506,8 +549,11 @@ public class GameScript : MonoBehaviour
     {
         status = GameStatus.Failed;
         input.anyKeyDown = false;
-        var rb = enemy.GetComponent<Rigidbody2D>();
-        rb.velocity = Vector2.zero;
+        foreach (var enemy in enemies)
+        {
+            var rb = enemy.GetComponent<Rigidbody2D>();
+            rb.velocity = Vector2.zero;
+        }
         dir = Vector2Int.zero;
         
         var list = map.GetObjects(ItemType.Line).Select(info => info.gameObject).ToList();

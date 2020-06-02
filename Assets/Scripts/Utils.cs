@@ -98,4 +98,12 @@ public static class Utils
         return Vector2Int.FloorToInt((Vector2)v + vHalf);
     }
 
+    public static void RandomVelocity(this Rigidbody2D rb, float speed)
+    {
+        rb.velocity = Vector2.one * speed;
+        for (int i = 0; i < Random.Range(0, 4); i++)
+        {
+            rb.velocity = Quaternion.Euler(0, 0, 90) * rb.velocity;
+        }
+    }
 }

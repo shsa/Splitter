@@ -8,6 +8,8 @@ public class GameSetup : MonoBehaviour
     public int Height = 100;
     public int Speed = 10;
 
+    public GameObject PlayerPrefab;
+    public GameObject EnemyPrefab;
     public GameObject BorderPrefab;
     public GameObject FillerPrefab;
     public GameObject CoverPrefab;
