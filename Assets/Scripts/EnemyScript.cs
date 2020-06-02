@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class EnemyScript : MonoBehaviour
 {
+    public GameScript game;
     public GameMap map;
     public int index;
 
@@ -69,5 +70,14 @@ public class EnemyScript : MonoBehaviour
             dir = new Vector2(0, dir.y);
         }
         velocity = Vector3.Reflect(velocity, dir.normalized);
+    }
+
+    void OnCollisionEnter2D(Collision2D collision)
+    {
+        var c = collision.collider.GetComponent<DontTouchComponent>();
+        if (c != null)
+        {
+            game.OnFailed();
+        }
     }
 }

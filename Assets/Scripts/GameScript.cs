@@ -1,7 +1,16 @@
-﻿using System.Collections;
+﻿using DG.Tweening;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+
+public enum GameStatus
+{
+    Play,
+    Paused,
+    Failed,
+    Won
+}
 
 public class GameScript : MonoBehaviour
 {
@@ -21,6 +30,7 @@ public class GameScript : MonoBehaviour
     List<WayPoint> way = new List<WayPoint>();
 
     static readonly Vector2Int imposiblePosition = new Vector2Int(int.MaxValue, int.MaxValue);
+    GameStatus status = GameStatus.Paused;
     RectInt gameRect;
     GameMap map = new GameMap();
     RectTransform gameUI;
@@ -30,20 +40,21 @@ public class GameScript : MonoBehaviour
     Transform finish;
     Transform enemy;
     GameObject image;
-    Vector2 speed = Vector2.one;
+    Vector2 enemySpeed = Vector2.one;
     Vector2Int startPos;
     Vector2Int finishPos;
     Vector2Int dir;
     Vector2Int nextDir;
+    Sequence doTweens;
 
 
     // Start is called before the first frame update
     void Start()
     {
+        doTweens = DOTween.Sequence();
         gameUI = GameObject.Find("GameUI").GetComponent<RectTransform>();
         game = GameObject.Find("Game").transform;
         input = game.gameObject.AddComponent<GameInput>();
-        input.Setup = Setup;
 
         player = GameObject.Find("Player").transform;
         finish = GameObject.Find("Finish").transform;
@@ -60,7 +71,11 @@ public class GameScript : MonoBehaviour
     {
         ViewSetup();
         UpdateInput();
-        UpdateGame();
+
+        if (status == GameStatus.Play)
+        {
+            UpdateGame();
+        }
     }
 
     void UpdateGame()
@@ -103,7 +118,21 @@ public class GameScript : MonoBehaviour
                 }
                 else
                 {
-                    OnFinish();
+                    if (map.GetItemType(finishPos) == ItemType.Line)
+                    {
+                        if (map.GetItemType(finishPos + dir) == ItemType.Border)
+                        {
+                            OnFinish();
+                        }
+                        else
+                        {
+                            OnFailed();
+                        }
+                    }
+                    else
+                    {
+                        OnFinish();
+                    }
                 }
             }
         }
@@ -142,6 +171,7 @@ public class GameScript : MonoBehaviour
                         }
                         player.localPosition = (Vector2)startPos;
                         finish.localPosition = (Vector2)finishPos;
+                        player.GetComponent<BoxCollider2D>().enabled = wayType == ItemType.Cover;
                     }
                 }
                 break;
@@ -195,6 +225,14 @@ public class GameScript : MonoBehaviour
 
     void UpdateInput()
     {
+        if (status == GameStatus.Failed)
+        {
+            if (input.anyKeyDown)
+            {
+                GameInit();
+            }
+        }
+
         if (input.direction != Vector2Int.zero)
         {
             if (dir == Vector2Int.zero)
@@ -280,18 +318,20 @@ public class GameScript : MonoBehaviour
         image.transform.localScale = new Vector3(scale, scale, 1);
 
         var sc = enemy.GetComponent<EnemyScript>();
-        speed = Vector2.one * Setup.Speed * cellSize;
-        sc.velocity = sc.velocity.normalized * speed;
+        enemySpeed = Vector2.one * Setup.Speed * cellSize;
+        sc.velocity = sc.velocity.normalized * enemySpeed;
         var rb = enemy.GetComponent<Rigidbody2D>();
         if (rb.velocity.sqrMagnitude == 0)
         {
             rb.velocity = Vector2.one;
         }
-        rb.velocity = rb.velocity.normalized * speed;
+        rb.velocity = rb.velocity.normalized * enemySpeed;
     }
 
     void GameInit()
     {
+        DOTween.Clear();
+
         gameRect = new RectInt(0, 0, Setup.Width, Setup.Height);
 
         map.Clear();
@@ -312,12 +352,18 @@ public class GameScript : MonoBehaviour
             }
         }
 
-        enemy.localPosition = new Vector2(maxX / 2, maxY / 2);
-        var sc = enemy.GetComponent<EnemyScript>();
+        player.localPosition = new Vector2((Setup.Width - 1) / 2, 0);
+
+        enemy.localPosition = new Vector2(maxX * 0.5f, maxY * 0.5f);
         var rb = enemy.GetComponent<Rigidbody2D>();
-        var dir = Quaternion.Euler(0, 0, 45) * Vector3.right;
-        rb.velocity = Vector2.one * speed;
-        //sc.velocity = dir * Setup.Speed;
+        rb.velocity = Vector2.one * enemySpeed;
+
+        var enemyScript = enemy.GetComponent<EnemyScript>();
+        enemyScript.game = this;
+
+        input.Setup = Setup;
+
+        status = GameStatus.Play;
     }
 
     int Count(Vector2Int pos)
@@ -412,10 +458,9 @@ public class GameScript : MonoBehaviour
                 }
 
                 var time = 0.5f;
-                //iTween.ScaleFrom(obj, Vector3.zero, time);
                 var obj = map.Get(p);
-                //iTween.ColorFrom(obj, iTween.Hash("color", Color.clear, "time", time, "delay", pause));
-                iTween.ColorTo(obj.gameObject, iTween.Hash("color", Color.clear, "time", time, "delay", pause));
+                var sr = obj.GetComponent<SpriteRenderer>();
+                sr.DOColor(new Color(1, 1, 1, 0), time).SetDelay(pause);
             }
             //yield return pause;
             pause += pauseTime;
@@ -455,5 +500,25 @@ public class GameScript : MonoBehaviour
             }
         }
         way.Clear();
+    }
+
+    public void OnFailed()
+    {
+        status = GameStatus.Failed;
+        input.anyKeyDown = false;
+        var rb = enemy.GetComponent<Rigidbody2D>();
+        rb.velocity = Vector2.zero;
+        dir = Vector2Int.zero;
+        
+        var list = map.GetObjects(ItemType.Line).Select(info => info.gameObject).ToList();
+        list.Add(player.gameObject);
+        foreach (var line in list)
+        { 
+            var child = line.transform.Find("Failed");
+            var sr = child.GetComponent<SpriteRenderer>();
+            var tween = sr.DOColor(Color.white, 1.0f)
+                .SetLoops(-1, LoopType.Yoyo);
+            doTweens.Append(tween);
+        }
     }
 }

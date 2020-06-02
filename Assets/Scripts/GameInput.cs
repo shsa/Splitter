@@ -13,6 +13,11 @@ public class GameInput : MonoBehaviour
     /// </summary>
     public Vector2Int direction;
 
+    /// <summary>
+    /// true if user make any action: touch, press keyboard
+    /// </summary>
+    public bool anyKeyDown = false;
+
     RectInt rect;
     GameSetup setup;
     public GameSetup Setup {
@@ -53,6 +58,7 @@ public class GameInput : MonoBehaviour
             switch (touch.phase)
             {
                 case TouchPhase.Began:
+                    anyKeyDown = true;
                     touchEnd = pos;
                     break;
                 case TouchPhase.Moved:
@@ -104,6 +110,11 @@ public class GameInput : MonoBehaviour
 
     void UpdateKeyboard()
     {
+        if (Input.anyKeyDown)
+        {
+            anyKeyDown = true;
+        }
+
         if (Input.GetKeyDown(KeyCode.UpArrow))
         {
             ChangeDirection(Vector2Int.up);
