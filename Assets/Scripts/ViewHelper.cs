@@ -55,6 +55,16 @@ public static class ViewHelper
         var obj = Object.Instantiate(game.Setup.PlayerPrefab, game.transform);
         obj.transform.localScale = Vector3.one;
         obj.name = "Player";
+        obj.tag = "Player";
+        return obj.transform;
+    }
+
+    public static Transform CreateEnemy(this GameScript game)
+    {
+        var obj = Object.Instantiate(game.Setup.EnemyPrefab, game.transform);
+        obj.transform.localScale = Vector3.one;
+        obj.name = "Enemy";
+        obj.tag = "Enemy";
         return obj.transform;
     }
 }

@@ -7,6 +7,7 @@ public class GameSetup : MonoBehaviour
     public int Width = 100;
     public int Height = 100;
     public int Speed = 10;
+    public int EnemyCount = 2;
 
     public GameObject PlayerPrefab;
     public GameObject EnemyPrefab;

@@ -38,7 +38,7 @@ public class GameScript : MonoBehaviour
     GameInput input;
     Transform player;
     Transform finish;
-    Transform[] enemies;
+    List<Transform> enemyList = new List<Transform>();
     GameObject image;
     float enemySpeed = 1;
     Vector2Int startPos;
@@ -57,12 +57,12 @@ public class GameScript : MonoBehaviour
         input = game.gameObject.AddComponent<GameInput>();
 
         finish = GameObject.Find("Finish").transform;
-        enemies = GameObject.FindGameObjectsWithTag("Enemy").Select(e => e.transform).ToArray();
+        enemyList = GameObject.FindGameObjectsWithTag("Enemy").Select(e => e.transform).ToList();
         image = GameObject.Find("Image");
 
         map.Setup = Setup;
         map.Parent = GameObject.Find("Borders").transform;
-        foreach (var enemy in enemies)
+        foreach (var enemy in enemyList)
         {
             enemy.GetComponent<EnemyScript>().map = map;
         }
@@ -261,16 +261,28 @@ public class GameScript : MonoBehaviour
                     {
                         return;
                     }
+                    else
+                    {
+                        StopPlayer();
+                    }
                 }
-
-                finishPos = player.localPosition.ToInt();
-                if (Vector2.Dot(finishPos - (Vector2)player.localPosition, dir) < 0)
+                else
                 {
-                    finishPos += dir;
+                    StopPlayer();
+                    nextDir = input.direction;
                 }
-                nextDir = input.direction;
             }
         }
+    }
+
+    void StopPlayer()
+    {
+        finishPos = player.localPosition.ToInt();
+        if (Vector2.Dot(finishPos - (Vector2)player.localPosition, dir) < 0)
+        {
+            finishPos += dir;
+        }
+        nextDir = Vector2Int.zero;
     }
 
     float gameWidth = 0;
@@ -321,7 +333,7 @@ public class GameScript : MonoBehaviour
 
 
         enemySpeed = Setup.Speed * cellSize;
-        foreach (var enemy in enemies)
+        foreach (var enemy in enemyList)
         {
             var rb = enemy.GetComponent<Rigidbody2D>();
             if (rb.velocity.sqrMagnitude == 0)
@@ -342,6 +354,7 @@ public class GameScript : MonoBehaviour
         gameRect = new RectInt(0, 0, Setup.Width, Setup.Height);
 
         map.Clear();
+        way.Clear();
         var maxX = Setup.Width - 1;
         var maxY = Setup.Height - 1;
         for (int j = 0; j <= maxY; j++)
@@ -365,10 +378,22 @@ public class GameScript : MonoBehaviour
         }
         player = this.CreatePlayer();
         player.localPosition = new Vector2((Setup.Width - 1) / 2, 0);
+        player.GetComponent<BoxCollider2D>().enabled = false;
 
-        foreach (var enemy in enemies)
+        foreach (var enemy in enemyList)
         {
-            enemy.localPosition = new Vector2(Random.Range(gameRect.xMin, gameRect.xMax), Random.Range(gameRect.yMin, gameRect.yMax));
+            Object.Destroy(enemy.gameObject);
+        }
+        enemyList.Clear();
+
+        for (int i = 0; i < Setup.EnemyCount; i++)
+        {
+            enemyList.Add(this.CreateEnemy());
+        }
+
+        foreach (var enemy in enemyList)
+        {
+            enemy.localPosition = new Vector2(Random.Range(gameRect.xMin + 1, gameRect.xMax - 1), Random.Range(gameRect.yMin + 1, gameRect.yMax - 1));
             var rb = enemy.GetComponent<Rigidbody2D>();
             rb.RandomVelocity(enemySpeed);
             var enemyScript = enemy.GetComponent<EnemyScript>();
@@ -376,13 +401,14 @@ public class GameScript : MonoBehaviour
         }
 
         input.Setup = Setup;
+        dir = Vector2Int.zero;
 
         status = GameStatus.Play;
     }
 
     int Count(Vector2Int pos)
     {
-        var ee = enemies.Select(e => e.localPosition.ToInt()).ToArray();
+        var ee = enemyList.Select(e => e.localPosition.ToInt()).ToArray();
 
         var sum = 0;
         foreach (var p in map.GetFillArea(pos))
@@ -507,49 +533,60 @@ public class GameScript : MonoBehaviour
     {
         OnEndMove();
 
-        foreach (var w in way)
+        var list = map.GetObjects(ItemType.Line).ToList();
+        foreach (var obj in list)
         {
-            map.SetBorder(w.position);
+            map.SetBorder(obj.position);
         }
 
-        var firstDir = Vector2Int.zero;
-        foreach (var w in way)
+        list = map.GetObjects(ItemType.Cover).ToList();
+        foreach (var obj in list)
         {
-            if (firstDir == Vector2Int.zero)
+            obj.id = 0;
+        }
+
+        var id = 1;
+        var ids = new HashSet<int>();
+        foreach (var obj in list)
+        {
+            if (obj.id == 0)
             {
-                firstDir = w.dir;
-            }
-
-            var d = w.dir.Rotate90();
-            var p0 = w.position + d;
-            var p1 = w.position - d;
-
-            if (map.IsEmpty(p0) && map.IsEmpty(p1))
-            {
-                var s0 = Count(p0);
-                var s1 = Count(p1);
-
-                var pos = p1;
-                if (s0 > 0)
+                ids.Add(id);
+                foreach (var pos in map.GetFillArea(obj.position))
                 {
-                    Fill(p0, w.dir);
+                    var a = map.Get(pos);
+                    a.id = id;
                 }
-                if (s1 > 0)
-                {
-                    Fill(p1, w.dir);
-                }
+                id++;
             }
         }
 
-        Fill(new List<Vector2Int>(), firstDir);
-        way.Clear();
+        foreach (var enemy in enemyList)
+        {
+            var pos = enemy.localPosition.ToInt();
+            var a = map.Get(pos);
+            ids.Remove(a.id);
+        }
+        var fillList = new List<Vector2Int>();
+        foreach (var id1 in ids)
+        {
+            foreach (var obj in list)
+            {
+                if (obj.id == id1)
+                {
+                    fillList.Add(obj.position);
+                    map.SetFiller(obj.position);
+                }
+            }
+        }
+        Fill(fillList, Vector2Int.up);
     }
 
     public void OnFailed()
     {
         status = GameStatus.Failed;
         input.anyKeyDown = false;
-        foreach (var enemy in enemies)
+        foreach (var enemy in enemyList)
         {
             var rb = enemy.GetComponent<Rigidbody2D>();
             rb.velocity = Vector2.zero;

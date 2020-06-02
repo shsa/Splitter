@@ -17,4 +17,5 @@ public class ItemMapInfo : MonoBehaviour
     public GameMap map;
     public Vector2Int position;
     public ItemType type;
+    public int id;
 }
